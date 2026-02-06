@@ -1,221 +1,192 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Universal AI Chat</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <!-- Tailwind CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
+<meta charset="UTF-8">
+<title>Universal AI Chat</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.tailwindcss.com"></script>
 </head>
 
 <body class="bg-gray-900 text-gray-100 h-screen overflow-hidden">
 
 <div class="flex h-full">
 
-  <!-- Sidebar -->
-  <aside class="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
-    <div class="p-4 font-bold text-lg flex justify-between">
-      Chats
-      <button onclick="newChat()" class="text-sm bg-blue-600 px-2 rounded">+</button>
-    </div>
-    <div id="chatList" class="flex-1 overflow-y-auto px-2 space-y-1"></div>
-    <button onclick="openSettings()" class="m-3 bg-gray-700 py-2 rounded">
-      ⚙ Settings
-    </button>
-  </aside>
+<!-- Sidebar -->
+<aside class="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
+  <div class="p-4 font-bold text-lg flex justify-between">
+    Chats
+    <button onclick="newChat()" class="bg-blue-600 px-2 rounded">+</button>
+  </div>
+  <div id="chatList" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
+  <button onclick="openSettings()" class="m-3 bg-gray-700 py-2 rounded">⚙ Settings</button>
+</aside>
 
-  <!-- Main -->
-  <main class="flex-1 flex flex-col">
+<!-- Main -->
+<main class="flex-1 flex flex-col">
 
-    <!-- Top bar -->
-    <div class="p-3 border-b border-gray-700 flex gap-2 items-center">
-      <select id="provider" class="bg-gray-800 p-2 rounded" onchange="loadModels()">
-        <option value="openrouter">OpenRouter</option>
-        <option value="openai">OpenAI</option>
-        <option value="gemini">Gemini</option>
-      </select>
-
-      <select id="model" class="bg-gray-800 p-2 rounded flex-1"></select>
-    </div>
-
-    <!-- Messages -->
-    <div id="messages" class="flex-1 overflow-y-auto p-4 space-y-4"></div>
-
-    <!-- Input -->
-    <div class="p-4 border-t border-gray-700 flex gap-2">
-      <input id="input"
-        class="flex-1 bg-gray-800 p-3 rounded"
-        placeholder="Type your message..."
-        onkeydown="if(event.key==='Enter') send()"
-      />
-      <button onclick="send()" class="bg-blue-600 px-6 rounded">
-        Send
-      </button>
-    </div>
-
-  </main>
+<!-- Top -->
+<div class="p-3 border-b border-gray-700 flex gap-2">
+  <select id="model" class="bg-gray-800 p-2 rounded flex-1"></select>
 </div>
 
-<!-- Settings Modal -->
+<!-- Messages -->
+<div id="messages" class="flex-1 overflow-y-auto p-4 space-y-4"></div>
+
+<!-- Input -->
+<div class="p-4 border-t border-gray-700 flex gap-2">
+  <input id="input" class="flex-1 bg-gray-800 p-3 rounded"
+    placeholder="Type message..."
+    onkeydown="if(event.key==='Enter') send()">
+  <button onclick="send()" class="bg-blue-600 px-6 rounded">Send</button>
+</div>
+
+</main>
+</div>
+
+<!-- Settings -->
 <div id="settingsModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center">
   <div class="bg-gray-800 p-6 rounded w-96 space-y-3">
-    <h2 class="text-lg font-bold">API Settings</h2>
-
-    <input id="openrouterKey" placeholder="OpenRouter API Key"
-      class="w-full bg-gray-700 p-2 rounded" />
-    <input id="openaiKey" placeholder="OpenAI API Key"
-      class="w-full bg-gray-700 p-2 rounded" />
-    <input id="geminiKey" placeholder="Gemini API Key"
-      class="w-full bg-gray-700 p-2 rounded" />
-
-    <input id="customModel" placeholder="Custom Model Name (optional)"
-      class="w-full bg-gray-700 p-2 rounded" />
+    <h2 class="text-lg font-bold">OpenRouter Settings</h2>
+    <input id="apiKey" placeholder="OpenRouter API Key"
+      class="w-full bg-gray-700 p-2 rounded">
+    <input id="siteName" placeholder="Site Name (any)"
+      class="w-full bg-gray-700 p-2 rounded">
+    <input id="siteUrl" placeholder="Site URL (GitHub Pages URL)"
+      class="w-full bg-gray-700 p-2 rounded">
 
     <div class="flex justify-end gap-2">
-      <button onclick="closeSettings()" class="bg-gray-600 px-4 py-2 rounded">
-        Cancel
-      </button>
-      <button onclick="saveSettings()" class="bg-blue-600 px-4 py-2 rounded">
-        Save
-      </button>
+      <button onclick="closeSettings()" class="bg-gray-600 px-4 py-2 rounded">Cancel</button>
+      <button onclick="saveSettings()" class="bg-blue-600 px-4 py-2 rounded">Save</button>
     </div>
   </div>
 </div>
 
 <script>
-/* ------------------ STATE ------------------ */
+/* STATE */
 let chats = JSON.parse(localStorage.getItem("chats") || "[]");
 let activeChat = null;
 let settings = JSON.parse(localStorage.getItem("settings") || "{}");
 
-/* ------------------ INIT ------------------ */
-loadChats();
+/* INIT */
 loadSettings();
 loadModels();
+newChat();
+loadChats();
 
-/* ------------------ CHAT ------------------ */
+/* CHAT */
 function newChat() {
   const chat = { id: Date.now(), title: "New Chat", messages: [] };
   chats.unshift(chat);
   activeChat = chat.id;
   saveChats();
   loadChats();
-  renderMessages();
+  render();
 }
 
 function loadChats() {
   const list = document.getElementById("chatList");
   list.innerHTML = "";
   chats.forEach(c => {
-    const btn = document.createElement("button");
-    btn.className = "w-full text-left p-2 rounded hover:bg-gray-700";
-    btn.textContent = c.title;
-    btn.onclick = () => { activeChat = c.id; renderMessages(); };
-    list.appendChild(btn);
+    const b = document.createElement("button");
+    b.className = "w-full text-left p-2 rounded hover:bg-gray-700";
+    b.textContent = c.title;
+    b.onclick = () => { activeChat = c.id; render(); };
+    list.appendChild(b);
   });
 }
 
-function renderMessages() {
+function render() {
   const box = document.getElementById("messages");
   box.innerHTML = "";
   const chat = chats.find(c => c.id === activeChat);
   if (!chat) return;
+
   chat.messages.forEach(m => {
-    const div = document.createElement("div");
-    div.className = m.role === "user" ? "text-right" : "text-left";
-    div.innerHTML = `
-      <div class="inline-block max-w-xl p-3 rounded
-        ${m.role === "user" ? "bg-blue-600" : "bg-gray-700"}">
-        ${m.content}
-      </div>`;
-    box.appendChild(div);
+    const d = document.createElement("div");
+    d.className = m.role === "user" ? "text-right" : "text-left";
+    d.innerHTML = `
+      <div class="inline-block max-w-xl p-3 rounded ${
+        m.role === "user" ? "bg-blue-600" : "bg-gray-700"
+      }">${m.content}</div>`;
+    box.appendChild(d);
   });
   box.scrollTop = box.scrollHeight;
 }
 
 function send() {
   const input = document.getElementById("input");
-  if (!input.value || !activeChat) return;
+  if (!input.value) return;
 
   const chat = chats.find(c => c.id === activeChat);
   chat.messages.push({ role: "user", content: input.value });
+  chat.title = chat.messages[0].content.slice(0, 25);
   input.value = "";
-  renderMessages();
+  render();
   saveChats();
 
   aiReply(chat);
 }
 
-/* ------------------ AI ------------------ */
+/* AI */
 async function aiReply(chat) {
-  const provider = document.getElementById("provider").value;
-  const model = document.getElementById("model").value;
-
-  let url, key, body;
-
-  if (provider === "openrouter") {
-    url = "https://openrouter.ai/api/v1/chat/completions";
-    key = settings.openrouterKey;
-    body = {
-      model,
-      messages: chat.messages
-    };
-  }
-
-  if (!key) {
-    chat.messages.push({ role: "assistant", content: "⚠ API key missing." });
-    renderMessages();
+  if (!settings.apiKey) {
+    chat.messages.push({ role: "assistant", content: "❌ OpenRouter API key missing." });
+    render();
     return;
   }
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + key
-    },
-    body: JSON.stringify(body)
-  });
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + settings.apiKey,
+        "HTTP-Referer": settings.siteUrl || location.origin,
+        "X-Title": settings.siteName || "Universal AI Chat"
+      },
+      body: JSON.stringify({
+        model: document.getElementById("model").value,
+        messages: chat.messages
+      })
+    });
 
-  const data = await res.json();
-  const reply = data.choices?.[0]?.message?.content || "No response";
+    const data = await res.json();
 
-  chat.messages.push({ role: "assistant", content: reply });
-  chat.title = chat.messages[0].content.slice(0, 20);
-  saveChats();
-  loadChats();
-  renderMessages();
-}
+    if (!res.ok) {
+      throw new Error(data.error?.message || "Request failed");
+    }
 
-/* ------------------ MODELS ------------------ */
-function loadModels() {
-  const provider = document.getElementById("provider").value;
-  const select = document.getElementById("model");
-  select.innerHTML = "";
+    chat.messages.push({
+      role: "assistant",
+      content: data.choices[0].message.content
+    });
 
-  let models = [];
-
-  if (provider === "openrouter") {
-    models = [
-      "openai/gpt-4o",
-      "openai/gpt-4o-mini",
-      "mistralai/mixtral-8x7b",
-      "google/gemini-pro"
-    ];
+  } catch (e) {
+    chat.messages.push({ role: "assistant", content: "⚠ " + e.message });
   }
 
-  if (settings.customModel) models.unshift(settings.customModel);
+  saveChats();
+  render();
+}
 
-  models.forEach(m => {
+/* MODELS */
+function loadModels() {
+  const m = document.getElementById("model");
+  m.innerHTML = "";
+  [
+    "openai/gpt-4o",
+    "openai/gpt-4o-mini",
+    "google/gemini-pro",
+    "mistralai/mixtral-8x7b"
+  ].forEach(x => {
     const o = document.createElement("option");
-    o.value = m;
-    o.textContent = m;
-    select.appendChild(o);
+    o.value = x;
+    o.textContent = x;
+    m.appendChild(o);
   });
 }
 
-/* ------------------ SETTINGS ------------------ */
+/* SETTINGS */
 function openSettings() {
   document.getElementById("settingsModal").classList.remove("hidden");
   document.getElementById("settingsModal").classList.add("flex");
@@ -227,29 +198,23 @@ function closeSettings() {
 
 function saveSettings() {
   settings = {
-    openrouterKey: document.getElementById("openrouterKey").value,
-    openaiKey: document.getElementById("openaiKey").value,
-    geminiKey: document.getElementById("geminiKey").value,
-    customModel: document.getElementById("customModel").value
+    apiKey: document.getElementById("apiKey").value,
+    siteName: document.getElementById("siteName").value,
+    siteUrl: document.getElementById("siteUrl").value
   };
   localStorage.setItem("settings", JSON.stringify(settings));
   closeSettings();
-  loadModels();
 }
 
 function loadSettings() {
-  document.getElementById("openrouterKey").value = settings.openrouterKey || "";
-  document.getElementById("openaiKey").value = settings.openaiKey || "";
-  document.getElementById("geminiKey").value = settings.geminiKey || "";
-  document.getElementById("customModel").value = settings.customModel || "";
+  document.getElementById("apiKey").value = settings.apiKey || "";
+  document.getElementById("siteName").value = settings.siteName || "";
+  document.getElementById("siteUrl").value = settings.siteUrl || "";
 }
 
-/* ------------------ STORAGE ------------------ */
 function saveChats() {
   localStorage.setItem("chats", JSON.stringify(chats));
 }
-
-newChat();
 </script>
 
 </body>
