@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Universal AI Chat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-900 text-gray-100 h-screen overflow-hidden">
+
+<div class="flex h-full">
+
+  <!-- Sidebar -->
+  <aside class="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
+    <div class="p-4 font-bold text-lg flex justify-between">
+      Chats
+      <button onclick="newChat()" class="text-sm bg-blue-600 px-2 rounded">+</button>
+    </div>
+    <div id="chatList" class="flex-1 overflow-y-auto px-2 space-y-1"></div>
+    <button onclick="openSettings()" class="m-3 bg-gray-700 py-2 rounded">
+      ⚙ Settings
+    </button>
+  </aside>
+
+  <!-- Main -->
+  <main class="flex-1 flex flex-col">
+
+    <!-- Top bar -->
+    <div class="p-3 border-b border-gray-700 flex gap-2 items-center">
+      <select id="provider" class="bg-gray-800 p-2 rounded" onchange="loadModels()">
+        <option value="openrouter">OpenRouter</option>
+        <option value="openai">OpenAI</option>
+        <option value="gemini">Gemini</option>
+      </select>
+
+      <select id="model" class="bg-gray-800 p-2 rounded flex-1"></select>
+    </div>
+
+    <!-- Messages -->
+    <div id="messages" class="flex-1 overflow-y-auto p-4 space-y-4"></div>
+
+    <!-- Input -->
+    <div class="p-4 border-t border-gray-700 flex gap-2">
+      <input id="input"
+        class="flex-1 bg-gray-800 p-3 rounded"
+        placeholder="Type your message..."
+        onkeydown="if(event.key==='Enter') send()"
+      />
+      <button onclick="send()" class="bg-blue-600 px-6 rounded">
+        Send
+      </button>
+    </div>
+
+  </main>
+</div>
+
+<!-- Settings Modal -->
+<div id="settingsModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center">
+  <div class="bg-gray-800 p-6 rounded w-96 space-y-3">
+    <h2 class="text-lg font-bold">API Settings</h2>
+
+    <input id="openrouterKey" placeholder="OpenRouter API Key"
+      class="w-full bg-gray-700 p-2 rounded" />
+    <input id="openaiKey" placeholder="OpenAI API Key"
+      class="w-full bg-gray-700 p-2 rounded" />
+    <input id="geminiKey" placeholder="Gemini API Key"
+      class="w-full bg-gray-700 p-2 rounded" />
+
+    <input id="customModel" placeholder="Custom Model Name (optional)"
+      class="w-full bg-gray-700 p-2 rounded" />
+
+    <div class="flex justify-end gap-2">
+      <button onclick="closeSettings()" class="bg-gray-600 px-4 py-2 rounded">
+        Cancel
+      </button>
+      <button onclick="saveSettings()" class="bg-blue-600 px-4 py-2 rounded">
+        Save
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ------------------ STATE ------------------ */
+let chats = JSON.parse(localStorage.getItem("chats") || "[]");
+let activeChat = null;
+let settings = JSON.parse(localStorage.getItem("settings") || "{}");
+
+/* ------------------ INIT ------------------ */
+loadChats();
+loadSettings();
+loadModels();
+
+/* ------------------ CHAT ------------------ */
+function newChat() {
+  const chat = { id: Date.now(), title: "New Chat", messages: [] };
+  chats.unshift(chat);
+  activeChat = chat.id;
+  saveChats();
+  loadChats();
+  renderMessages();
+}
+
+function loadChats() {
+  const list = document.getElementById("chatList");
+  list.innerHTML = "";
+  chats.forEach(c => {
+    const btn = document.createElement("button");
+    btn.className = "w-full text-left p-2 rounded hover:bg-gray-700";
+    btn.textContent = c.title;
+    btn.onclick = () => { activeChat = c.id; renderMessages(); };
+    list.appendChild(btn);
+  });
+}
+
+function renderMessages() {
+  const box = document.getElementById("messages");
+  box.innerHTML = "";
+  const chat = chats.find(c => c.id === activeChat);
+  if (!chat) return;
+  chat.messages.forEach(m => {
+    const div = document.createElement("div");
+    div.className = m.role === "user" ? "text-right" : "text-left";
+    div.innerHTML = `
+      <div class="inline-block max-w-xl p-3 rounded
+        ${m.role === "user" ? "bg-blue-600" : "bg-gray-700"}">
+        ${m.content}
+      </div>`;
+    box.appendChild(div);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+function send() {
+  const input = document.getElementById("input");
+  if (!input.value || !activeChat) return;
+
+  const chat = chats.find(c => c.id === activeChat);
+  chat.messages.push({ role: "user", content: input.value });
+  input.value = "";
+  renderMessages();
+  saveChats();
+
+  aiReply(chat);
+}
+
+/* ------------------ AI ------------------ */
+async function aiReply(chat) {
+  const provider = document.getElementById("provider").value;
+  const model = document.getElementById("model").value;
+
+  let url, key, body;
+
+  if (provider === "openrouter") {
+    url = "https://openrouter.ai/api/v1/chat/completions";
+    key = settings.openrouterKey;
+    body = {
+      model,
+      messages: chat.messages
+    };
+  }
+
+  if (!key) {
+    chat.messages.push({ role: "assistant", content: "⚠ API key missing." });
+    renderMessages();
+    return;
+  }
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + key
+    },
+    body: JSON.stringify(body)
+  });
+
+  const data = await res.json();
+  const reply = data.choices?.[0]?.message?.content || "No response";
+
+  chat.messages.push({ role: "assistant", content: reply });
+  chat.title = chat.messages[0].content.slice(0, 20);
+  saveChats();
+  loadChats();
+  renderMessages();
+}
+
+/* ------------------ MODELS ------------------ */
+function loadModels() {
+  const provider = document.getElementById("provider").value;
+  const select = document.getElementById("model");
+  select.innerHTML = "";
+
+  let models = [];
+
+  if (provider === "openrouter") {
+    models = [
+      "openai/gpt-4o",
+      "openai/gpt-4o-mini",
+      "mistralai/mixtral-8x7b",
+      "google/gemini-pro"
+    ];
+  }
+
+  if (settings.customModel) models.unshift(settings.customModel);
+
+  models.forEach(m => {
+    const o = document.createElement("option");
+    o.value = m;
+    o.textContent = m;
+    select.appendChild(o);
+  });
+}
+
+/* ------------------ SETTINGS ------------------ */
+function openSettings() {
+  document.getElementById("settingsModal").classList.remove("hidden");
+  document.getElementById("settingsModal").classList.add("flex");
+}
+
+function closeSettings() {
+  document.getElementById("settingsModal").classList.add("hidden");
+}
+
+function saveSettings() {
+  settings = {
+    openrouterKey: document.getElementById("openrouterKey").value,
+    openaiKey: document.getElementById("openaiKey").value,
+    geminiKey: document.getElementById("geminiKey").value,
+    customModel: document.getElementById("customModel").value
+  };
+  localStorage.setItem("settings", JSON.stringify(settings));
+  closeSettings();
+  loadModels();
+}
+
+function loadSettings() {
+  document.getElementById("openrouterKey").value = settings.openrouterKey || "";
+  document.getElementById("openaiKey").value = settings.openaiKey || "";
+  document.getElementById("geminiKey").value = settings.geminiKey || "";
+  document.getElementById("customModel").value = settings.customModel || "";
+}
+
+/* ------------------ STORAGE ------------------ */
+function saveChats() {
+  localStorage.setItem("chats", JSON.stringify(chats));
+}
+
+newChat();
+</script>
+
+</body>
+</html>
